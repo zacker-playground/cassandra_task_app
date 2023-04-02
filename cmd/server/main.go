@@ -9,6 +9,10 @@ import (
 	"github.com/zacker/cassandra/taskapp/db"
 )
 
+type Server struct {
+	userRepository db.UserRepository
+}
+
 func main() {
 	r := gin.Default()
 	r.GET("/", func(c *gin.Context) {
@@ -26,16 +30,20 @@ func main() {
 		log.Fatalf("error while connecting db: %v", err)
 	}
 
-	userRepository := db.NewUserRepository(session)
-	r.GET("/users", func(c *gin.Context) {
-		users, err := userRepository.FetchUsers(100)
-		if err != nil {
-			log.Printf("error: %v\n", err)
-			c.Status(http.StatusInternalServerError)
-			return
-		}
-		c.JSON(http.StatusOK, users)
-	})
+	server := Server{
+		userRepository: db.NewUserRepository(session),
+	}
+	r.GET("/users", server.UserIndex)
 
 	r.Run()
+}
+
+func (r Server) UserIndex(c *gin.Context) {
+	users, err := r.userRepository.FetchUsers(100)
+	if err != nil {
+		log.Printf("error: %v\n", err)
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	c.JSON(http.StatusOK, users)
 }
