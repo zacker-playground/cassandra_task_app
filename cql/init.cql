@@ -8,3 +8,14 @@ CREATE TABLE IF NOT EXISTS app.users
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS app.tasks
+(
+    id         UUID,
+    user_id    UUID,
+    title      TEXT,
+    checked    BOOLEAN,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    PRIMARY KEY ( id, user_id )
+)
