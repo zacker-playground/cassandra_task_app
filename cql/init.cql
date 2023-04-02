@@ -17,5 +17,5 @@ CREATE TABLE IF NOT EXISTS app.tasks
     checked    BOOLEAN,
     created_at TIMESTAMP,
     updated_at TIMESTAMP,
-    PRIMARY KEY ( id, user_id )
+    PRIMARY KEY ((user_id), id )
 )
