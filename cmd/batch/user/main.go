@@ -22,7 +22,7 @@ func main() {
 
 	// 10並列で書き込みを行う
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, 20)
+	sem := make(chan struct{}, 3)
 
 	seed := time.Now().UTC().UnixNano()
 	nameGenerator := namegenerator.NewNameGenerator(seed)
@@ -35,19 +35,25 @@ func main() {
 		sem <- struct{}{}
 		wg.Add(1)
 
-		go func(n int) {
+		go func(n int, name string) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			name := nameGenerator.Generate()
+			batch := session.NewBatch(gocql.LoggedBatch)
+			userId := gocql.MustRandomUUID()
 			age := 10 + n%60
-			userId := CreateUserData(name, age, session)
+
+			CreateUserData(userId, name, age, batch)
 
 			// 1ユーザーごと100個のタスクを持つ
 			for j := 0; j < 100; j++ {
-				CreateTask(fmt.Sprintf("The task of %s [%d / 100]", name, j), userId, session)
+				CreateTask(userId, fmt.Sprintf("The task of %s [%d / 100]", name, j), batch)
 			}
-		}(i)
+
+			if err := session.ExecuteBatch(batch); err != nil {
+				log.Printf("error while inserting data: %v\n", err)
+			}
+		}(i, nameGenerator.Generate())
 	}
 
 	wg.Wait()
@@ -56,28 +62,19 @@ func main() {
 	log.Printf("Batch Create User took %s", elapsed)
 }
 
-func CreateUserData(name string, age int, session *gocql.Session) gocql.UUID {
-	userId := gocql.MustRandomUUID()
-	query := session.Query(
+func CreateUserData(userId gocql.UUID, name string, age int, session *gocql.Batch) {
+	session.Query(
 		"INSERT INTO app.users (id, name, age, created_at, updated_at) VALUES (?, ?, ?, toTimeStamp(now()), toTimeStamp(now()))",
 		userId,
 		name,
 		age,
 	)
-	if err := query.Exec(); err != nil {
-		log.Fatalf("error while inserting user data: %v", err)
-	}
-
-	return userId
 }
 
-func CreateTask(title string, userId gocql.UUID, session *gocql.Session) {
-	query := session.Query(
+func CreateTask(userId gocql.UUID, title string, session *gocql.Batch) {
+	session.Query(
 		"INSERT INTO app.tasks (id, user_id, title, checked, created_at, updated_at) VALUES (uuid(), ?, ?, FALSE, toTimestamp(now()), toTimestamp(now()))",
 		userId,
 		title,
 	)
-	if err := query.Exec(); err != nil {
-		log.Fatalf("error while inserting task data: %v", err)
-	}
 }
